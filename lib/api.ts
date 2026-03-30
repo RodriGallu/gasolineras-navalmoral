@@ -5,7 +5,6 @@ const API_URL =
 
 function parsePrice(raw: string | undefined | null): number | null {
   if (!raw || raw.trim() === "") return null;
-  // Replace comma decimal separator with dot
   const normalized = raw.replace(",", ".");
   const value = parseFloat(normalized);
   return isNaN(value) ? null : value;
@@ -16,6 +15,22 @@ function parseCoord(raw: string): number | null {
   const normalized = raw.replace(",", ".");
   const value = parseFloat(normalized);
   return isNaN(value) ? null : value;
+}
+
+function getGasoilPrice(raw: RawEstacion): number | null {
+  // Probamos todas las variantes posibles del campo gasóleo/diésel
+  const candidates = [
+    raw["Precio Gasoleo A"],
+    (raw as Record<string, string>)["Precio Gas\u00f3leo A"],
+    raw["Precio Gasoil A"],
+    (raw as Record<string, string>)["Precio Di\u00e9sel"],
+    (raw as Record<string, string>)["Precio Diesel"],
+  ];
+  for (const c of candidates) {
+    const p = parsePrice(c);
+    if (p !== null) return p;
+  }
+  return null;
 }
 
 function processStation(raw: RawEstacion): GasStation {
@@ -31,9 +46,13 @@ function processStation(raw: RawEstacion): GasStation {
     schedule: raw["Horario"] || "",
     prices: {
       gasolina95: parsePrice(raw["Precio Gasolina 95 E5"]),
-      gasoilA: parsePrice(raw["Precio Gasoil A"]),
       gasolina98: parsePrice(raw["Precio Gasolina 98 E5"]),
-      gasoilPremium: parsePrice(raw["Precio Gasoil Premium"]),
+      diesel: getGasoilPrice(raw),
+      dieselPremium:
+        parsePrice((raw as Record<string, string>)["Precio Gasoleo Premium"]) ??
+        parsePrice((raw as Record<string, string>)["Precio Gas\u00f3leo Premium"]) ??
+        parsePrice((raw as Record<string, string>)["Precio Gasoil Premium"]) ??
+        null,
     },
   };
 }
@@ -43,6 +62,7 @@ export interface FetchResult {
   fecha: string;
   error: string | null;
   municipality: string;
+  rawSample?: Record<string, string>;
 }
 
 export async function fetchGasStations(
@@ -51,29 +71,22 @@ export async function fetchGasStations(
 ): Promise<FetchResult> {
   try {
     const res = await fetch(API_URL, {
-      next: { revalidate: 1800 }, // Cache 30 minutes
-      headers: {
-        Accept: "application/json",
-      },
+      next: { revalidate: 1800 },
+      headers: { Accept: "application/json" },
     });
 
-    if (!res.ok) {
-      throw new Error(`API error: ${res.status} ${res.statusText}`);
-    }
+    if (!res.ok) throw new Error(`API error: ${res.status} ${res.statusText}`);
 
     const data: ApiResponse = await res.json();
 
-    if (data.ResultadoConsulta !== "OK") {
+    if (data.ResultadoConsulta !== "OK")
       throw new Error("La API no devolvió un resultado satisfactorio.");
-    }
 
-    // Filter by municipality (and optionally province)
     const municipioUpper = municipality.toUpperCase().trim();
     const provinciaUpper = province?.toUpperCase().trim();
 
     const filtered = data.ListaEESSPrecio.filter((s) => {
-      const matchMunicipio =
-        s["Municipio"].toUpperCase().trim() === municipioUpper;
+      const matchMunicipio = s["Municipio"].toUpperCase().trim() === municipioUpper;
       const matchProvincia = provinciaUpper
         ? s["Provincia"].toUpperCase().trim() === provinciaUpper
         : true;
@@ -82,39 +95,41 @@ export async function fetchGasStations(
 
     const stations = filtered.map(processStation);
 
-    // Find cheapest
     const withGasolina = stations.filter((s) => s.prices.gasolina95 !== null);
-    const withGasoil = stations.filter((s) => s.prices.gasoilA !== null);
+    const withDiesel = stations.filter((s) => s.prices.diesel !== null);
 
     const minGasolina =
       withGasolina.length > 0
         ? Math.min(...withGasolina.map((s) => s.prices.gasolina95!))
         : null;
-    const minGasoil =
-      withGasoil.length > 0
-        ? Math.min(...withGasoil.map((s) => s.prices.gasoilA!))
+    const minDiesel =
+      withDiesel.length > 0
+        ? Math.min(...withDiesel.map((s) => s.prices.diesel!))
         : null;
 
     const enriched = stations.map((s) => ({
       ...s,
-      isCheapestGasolina:
-        minGasolina !== null && s.prices.gasolina95 === minGasolina,
-      isCheapestGasoil: minGasoil !== null && s.prices.gasoilA === minGasoil,
+      isCheapestGasolina: minGasolina !== null && s.prices.gasolina95 === minGasolina,
+      isCheapestDiesel: minDiesel !== null && s.prices.diesel === minDiesel,
       diffGasolina:
         minGasolina !== null && s.prices.gasolina95 !== null
           ? parseFloat((s.prices.gasolina95 - minGasolina).toFixed(3))
           : undefined,
-      diffGasoil:
-        minGasoil !== null && s.prices.gasoilA !== null
-          ? parseFloat((s.prices.gasoilA - minGasoil).toFixed(3))
+      diffDiesel:
+        minDiesel !== null && s.prices.diesel !== null
+          ? parseFloat((s.prices.diesel - minDiesel).toFixed(3))
           : undefined,
     }));
+
+    // Muestra los campos reales del primer resultado para debug
+    const rawSample = filtered[0] as unknown as Record<string, string> | undefined;
 
     return {
       stations: enriched,
       fecha: data.Fecha,
       error: null,
       municipality,
+      rawSample,
     };
   } catch (err) {
     const message =

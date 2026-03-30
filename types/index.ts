@@ -1,31 +1,30 @@
-// Raw API response types from Ministerio de Industria
 export interface RawEstacion {
   "C.P.": string;
   Dirección: string;
   Horario: string;
   Latitud: string;
-  "Localidad": string;
+  Localidad: string;
   "Longitud (WGS84)": string;
   Margen: string;
   Municipio: string;
-  "PrecioProducto": string;
+  PrecioProducto: string;
   Provincia: string;
   Remisión: string;
   Rótulo: string;
   "Tipo Venta": string;
   "% BioEtanol": string;
   "% Éster metílico": string;
-  "IDEESS": string;
-  "IDMunicipio": string;
-  "IDProvincia": string;
-  "IDCCAA": string;
-  "Precio Gasolina 95 E10"?: string;
+  IDEESS: string;
+  IDMunicipio: string;
+  IDProvincia: string;
+  IDCCAA: string;
   "Precio Gasolina 95 E5"?: string;
+  "Precio Gasolina 95 E10"?: string;
   "Precio Gasolina 95 E5 Premium"?: string;
-  "Precio Gasolina 98 E10"?: string;
   "Precio Gasolina 98 E5"?: string;
+  "Precio Gasolina 98 E10"?: string;
   "Precio Gasoil A"?: string;
-  "Precio Gasoil B"?: string;
+  "Precio Gasoleo A"?: string;
   "Precio Gasoil Premium"?: string;
   "Precio Hidrogeno"?: string;
   "Precio Bioetanol"?: string;
@@ -33,6 +32,7 @@ export interface RawEstacion {
   "Precio Gas Natural Comprimido"?: string;
   "Precio Gas Natural Licuado"?: string;
   "Precio Gases licuados del petróleo"?: string;
+  [key: string]: string | undefined;
 }
 
 export interface ApiResponse {
@@ -41,7 +41,6 @@ export interface ApiResponse {
   ResultadoConsulta: string;
 }
 
-// Processed station type for the UI
 export interface GasStation {
   id: string;
   name: string;
@@ -53,15 +52,15 @@ export interface GasStation {
   longitude: number | null;
   prices: {
     gasolina95: number | null;
-    gasoilA: number | null;
     gasolina98: number | null;
-    gasoilPremium: number | null;
+    diesel: number | null;
+    dieselPremium: number | null;
   };
   schedule: string;
   isCheapestGasolina?: boolean;
-  isCheapestGasoil?: boolean;
+  isCheapestDiesel?: boolean;
   diffGasolina?: number;
-  diffGasoil?: number;
+  diffDiesel?: number;
 }
 
-export type SortBy = "gasolina95" | "gasoilA";
+export type SortBy = "gasolina95" | "diesel";
