@@ -138,4 +138,5 @@ GET https://sedeaplicaciones.minetur.gob.es/ServiciosRESTCarburantes/PreciosCarb
 
 ---
 
-Desarrollado con ❤️ usando datos públicos del Gobierno de España.
+Desarrollado usando datos públicos del Gobierno de España.
+Pedro Sánchez Perro.
